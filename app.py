@@ -1,6 +1,5 @@
 from datetime import datetime,date
 import numpy as np
-from pandas_datareader.data import DataReader
 from pandas_datareader import data as pdr
 import streamlit as sl
 import yfinance as yf
