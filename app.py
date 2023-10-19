@@ -1,83 +1,65 @@
-from datetime import datetime,date
-import numpy as np
-from pandas_datareader import data as pdr
-import streamlit as sl
+import streamlit as st
 import yfinance as yf
-from keras.models import load_model
-from sklearn.preprocessing import MinMaxScaler
+import datetime
 import plotly.graph_objs as go
+import requests
+import numpy as np
+import json
 
-loadedModel = load_model('m.h5')
+API_URL = "http://127.0.0.1:8000/LSTM_Predict"
 
-def get_index_from(target):
-  i = 0
-  for date, data in df.iterrows():
-    if (str(date.date()) == target.strftime('%Y-%m-%d')):
-      return (i)
-    i += 1
-  return (None)
+min_date = datetime.date(2000, 1, 1)
+max_date = datetime.date(2023, 9, 1)
 
-def predict(str):
-    data = df.filter(['Close'])
+st.title("AAPL Stock Prediction")
 
-    dataset = data.values
-  
-    scaler = MinMaxScaler(feature_range=(0,1))
-    scaled_data = scaler.fit_transform(dataset)
+#stock_name = st.selectbox('Please choose stock name', ('AAPL','TSLA','AMZN','MSFT'))
 
-    target_index = get_index_from(str)
+stock_name = 'AAPL'
 
-    actual_price = df['Close'][target_index]
-
-    if (target_index == None):
-        return (None)
-    x_in = []
-    x_in.append(scaled_data[target_index - 10: target_index, :])
-    x_in = np.array(x_in)
-    predict = loadedModel.predict(x_in)
-    predict = scaler.inverse_transform(predict)
-    return (predict[0][0], actual_price, abs(float(predict[0][0] - float(actual_price))))
-
-
-sl.title('AAPL Stock Prediction')
-
-yf.pdr_override()
-
-min_date = date(2000,1,3)
-max_date = date(2023, 8, 31)
-
-start_date = sl.date_input("Start date", min_value=min_date, max_value=max_date, value=min_date)
-end_date = sl.date_input("End date", min_value=min_date, max_value=max_date, value=max_date)
+start_date = st.date_input("Start date", min_value=min_date, max_value=max_date, value=min_date)
+end_date = st.date_input("End date", min_value=min_date, max_value=max_date, value=max_date)
 
 if start_date <= end_date:
-    sl.success("Start date: `{}`\n\nEnd date:`{}`".format(start_date, end_date))
+    st.success("Start date: `{}`\n\nEnd date:`{}`".format(start_date, end_date))
 else:
-    sl.error("Error: End date must be after start date.")
+    st.error("Error: End date must be after start date.")
 
-stock_data = yf.download('AAPL', start=start_date, end=end_date)
+stock_data = yf.download(stock_name, start=start_date, end=end_date)
+
+
 stock_data.reset_index(inplace=True)
 
+
 fig = go.Figure()
-fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Close'], name='Close'))
-fig.update_layout(title=f"AAP: Stock Price")
-sl.plotly_chart(fig)
+fig.add_trace(go.Scatter(x=stock_data['Date'], y=stock_data['Close'], name='Close'))
+fig.update_layout(title=f"{stock_name} Stock Price")
+st.plotly_chart(fig)
 
-selected_date = sl.date_input("Select a date", min_value=min_date, max_value=max_date, value=max_date)
+stock_data.to_csv(f'{stock_name}_data.csv',index=False)
 
-print(selected_date)
+if st.button("Predict"):
+    payload = {"stock_name": stock_name}
 
-print(type(selected_date))
+    try:
+        response = requests.post(API_URL, json=payload)
+        response.raise_for_status()
 
-if selected_date:
-    
-    df = pdr.get_data_yahoo('AAPL', start='2000-01-01', end='2023-09-01')
-
-    sl.subheader(f'Predit')
-    
-    res = predict(selected_date)
-
-    if (res == None):
-        sl.write("data error")
-    else:
-        sl.write(f" the predict Close price is {res[0]} and actual price is {res[1]} there have distance {res[2]}")
-
+        predictions = response.json()
+        predicted_prices = predictions["prediction"]
+        rmse = predictions['meanerror']
+        acc = predictions['acc']
+        actual_prices = stock_data['Close'].tolist()
+      
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=stock_data['Date'], y=actual_prices, name='Actual'))
+        fig.add_trace(go.Scatter(x=stock_data['Date'][-len(predicted_prices):], 
+        y=predicted_prices, name='Predicted'))
+      
+        fig.update_layout(title=f"{stock_name} Stock Price")
+        st.plotly_chart(fig)
+        st.write(f"Root mean square = {rmse}")
+        st.write("Accuracy = %.2f" % acc,"%")
+        
+    except requests.exceptions.RequestException as e:
+        st.error(f"Error occurred while making the request: {e}")
