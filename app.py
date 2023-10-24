@@ -27,9 +27,7 @@ else:
 
 stock_data = yf.download(stock_name, start=start_date, end=end_date)
 
-
 stock_data.reset_index(inplace=True)
-
 
 fig = go.Figure()
 fig.add_trace(go.Scatter(x=stock_data['Date'], y=stock_data['Close'], name='Close'))
@@ -55,7 +53,7 @@ if st.button("Predict"):
         fig.add_trace(go.Scatter(x=stock_data['Date'], y=actual_prices, name='Actual'))
         fig.add_trace(go.Scatter(x=stock_data['Date'][-len(predicted_prices):], 
         y=predicted_prices, name='Predicted'))
-      
+
         fig.update_layout(title=f"{stock_name} Stock Price")
         st.plotly_chart(fig)
         st.write(f"Root mean square = {rmse}")
