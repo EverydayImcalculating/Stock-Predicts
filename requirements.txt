@@ -8,3 +8,6 @@ streamlit
 streamlit-option-menu
 tensorflow
 yfinance
+keras
+fastapi
+pydantic
